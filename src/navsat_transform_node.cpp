@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2015, 2016, Charles River Analytics, Inc.
+ * Copyright (c) 2014, 2015, 2016, 2018 Charles River Analytics, Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,19 +30,16 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "robot_localization/navsat_transform.h"
+#include <rclcpp/rclcpp.hpp>
+#include <robot_localization/navsat_transform.hpp>
 
-#include <ros/ros.h>
-
-int main(int argc, char **argv)
+int main(int argc, char ** argv)
 {
-  ros::init(argc, argv, "navsat_transform_node");
+  rclcpp::init(argc, argv);
 
-  RobotLocalization::NavSatTransform trans;
+  robot_localization::NavSatTransform trans;
 
   trans.run();
 
-  return EXIT_SUCCESS;
+  return 0;
 }
-
-

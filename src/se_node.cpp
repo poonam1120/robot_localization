@@ -30,71 +30,51 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <robot_localization/filter_common.hpp>
-#include <robot_localization/filter_utilities.hpp>
+#include <robot_localization/ekf.hpp>
+#include <robot_localization/filter_base.hpp>
+#include <robot_localization/ros_filter.hpp>
+#include <robot_localization/ukf.hpp>
 
-#include <iomanip>
+#include <rclcpp/rclcpp.hpp>
+
+#include <algorithm>
 #include <string>
+#include <memory>
 #include <vector>
 
-std::ostream & operator<<(std::ostream & os, const Eigen::MatrixXd & mat)
+int main(int argc, char ** argv)
 {
-  os << "[";
+  rclcpp::init(argc, argv);
+  auto node = rclcpp::Node::make_shared("se_node");
 
-  int row_count = static_cast<int>(mat.rows());
+  std::string filter_type = "ekf";
+  node->get_parameter("filter_type", filter_type);
+  std::transform(filter_type.begin(), filter_type.end(), filter_type.begin(),
+    ::tolower);
 
-  for (int row = 0; row < row_count; ++row) {
-    if (row > 0) {
-      os << " ";
+  robot_localization::FilterBase::UniquePtr filter;
+
+  if (filter_type == "ukf") {
+    double alpha = 0.001;
+    double kappa = 0.0;
+    double beta = 2.0;
+
+    node->get_parameter("alpha", alpha);
+    node->get_parameter("kappa", kappa);
+    node->get_parameter("beta", beta);
+
+    filter = std::make_unique<robot_localization::Ukf>(alpha, kappa, beta);
+  } else {
+    if (filter_type != "ekf") {
+      std::cerr << "Unsupported filter type of " << filter_type <<
+        " specified. Defaulting to ekf.\n";
     }
 
-    for (int col = 0; col < mat.cols(); ++col) {
-      os << std::setiosflags(std::ios::left) << std::setw(12) <<
-        std::setprecision(5) << mat(row, col);
-    }
-
-    if (row < row_count - 1) {
-      os << "\n";
-    }
+    filter = std::make_unique<robot_localization::Ekf>();
   }
 
-  os << "]\n";
+  robot_localization::RosFilter ros_filter(node, filter);
+  ros_filter.run();
 
-  return os;
-}
-
-std::ostream & operator<<(std::ostream & os, const Eigen::VectorXd & vec)
-{
-  os << "[";
-  for (int dim = 0; dim < vec.rows(); ++dim) {
-    os << std::setiosflags(std::ios::left) << std::setw(12) <<
-      std::setprecision(5) << vec(dim);
-  }
-  os << "]\n";
-
-  return os;
-}
-
-std::ostream & operator<<(std::ostream & os, const std::vector<size_t> & vec)
-{
-  os << "[";
-  for (size_t dim = 0; dim < vec.size(); ++dim) {
-    os << std::setiosflags(std::ios::left) << std::setw(12) <<
-      std::setprecision(5) << vec[dim];
-  }
-  os << "]\n";
-
-  return os;
-}
-
-std::ostream & operator<<(std::ostream & os, const std::vector<int> & vec)
-{
-  os << "[";
-  for (size_t dim = 0; dim < vec.size(); ++dim) {
-    os << std::setiosflags(std::ios::left) << std::setw(3) <<
-    (vec[dim] ? "t" : "f");
-  }
-  os << "]\n";
-
-  return os;
+  return 0;
 }
