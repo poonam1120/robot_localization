@@ -1,283 +1,186 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.5)
 project(robot_localization)
 
-find_package(catkin REQUIRED COMPONENTS
-  diagnostic_msgs
-  diagnostic_updater
-  eigen_conversions
-  geographic_msgs
-  geometry_msgs
-  message_filters
-  message_generation
-  nav_msgs
-  roscpp
-  roslint
-  sensor_msgs
-  std_msgs
-  std_srvs
-  tf2
-  tf2_geometry_msgs
-  tf2_ros
-  xmlrpcpp)
-
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(YAML_CPP yaml-cpp)
-
-# Attempt to find Eigen using its own CMake module.
-# If that fails, fall back to cmake_modules package.
-find_package(Eigen3)
-set(EIGEN_PACKAGE EIGEN3)
-if(NOT EIGEN3_FOUND)
-  find_package(cmake_modules REQUIRED)
-  find_package(Eigen REQUIRED)
-  set(EIGEN3_INCLUDE_DIRS ${EIGEN_INCLUDE_DIRS})
-  set(EIGEN3_LIBRARIES ${EIGEN_LIBRARIES})
-  set(EIGEN_PACKAGE Eigen)
+if(NOT WIN32)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 endif()
 
-add_definitions(-DEIGEN_NO_DEBUG -DEIGEN_MPL2_ONLY)
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+#find_package(geographic_msgs REQUIRED)
+find_package(diagnostic_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(Eigen3 REQUIRED)
 
-roslint_cpp()
-
-###################################
-## catkin specific configuration ##
-###################################
-add_service_files(
-  FILES
-    GetState.srv
-    SetDatum.srv
-    SetPose.srv
-    ToggleFilterProcessing.srv
-)
-
-generate_messages(
+rosidl_generate_interfaces(${PROJECT_NAME}
+  #"srv/SetDatum.srv"
+  "srv/SetPose.srv"
   DEPENDENCIES
-    geographic_msgs
+    builtin_interfaces
     geometry_msgs
-    std_msgs
-)
-
-catkin_package(
-  INCLUDE_DIRS
-    include
-  LIBRARIES 
-    ekf
-    filter_base
-    filter_utilities
-    navsat_transform
-    ros_filter
-    ros_filter_utilities
-    robot_localization_estimator
-    ros_robot_localization_listener
-    ukf
-  CATKIN_DEPENDS
-    cmake_modules
+    #geographic_msgs
     diagnostic_msgs
-    diagnostic_updater
-    eigen_conversions
-    geographic_msgs
-    geometry_msgs
-    message_filters
-    message_runtime
-    nav_msgs
-    roscpp
-    sensor_msgs
-    std_msgs
-    std_srvs
-    tf2
-    tf2_geometry_msgs
-    tf2_ros
-    xmlrpcpp
-  DEPENDS
-    ${EIGEN_PACKAGE}
-    YAML_CPP
+  ADD_LINTER_TESTS
 )
 
-###########
-## Build ##
-###########
-
+include_directories(SYSTEM ${Eigen_INCLUDE_DIRS})
 include_directories(
   include
-  ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
-  ${YAML_CPP_INCLUDE_DIRS})
+  ${rclcpp_INCLUDE_DIRS}
+  ${geometry_msgs_INCLUDE_DIRS}
+  ${diagnostic_msgs_INCLUDE_DIRS}
+  ${nav_msgs_INCLUDE_DIRS}
+  ${sensor_msgs_INCLUDE_DIRS}
+  ${tf2_ros_INCLUDE_DIRS}
+  ${tf2_INCLUDE_DIRS}
+  ${tf2_geometry_msgs_INCLUDE_DIRS})
 
-link_directories(${YAML_CPP_LIBRARY_DIRS})
+add_library(
+  rl_lib
+  src/ekf.cpp
+  src/ukf.cpp
+  src/filter_base.cpp
+  src/filter_utilities.cpp
+  src/ros_filter.cpp
+  src/ros_filter_utilities.cpp)
 
-# Library definitions
-add_library(filter_utilities src/filter_utilities.cpp)
-add_library(filter_base src/filter_base.cpp)
-add_library(ekf src/ekf.cpp)
-add_library(ukf src/ukf.cpp)
-add_library(robot_localization_estimator src/robot_localization_estimator.cpp)
-add_library(ros_robot_localization_listener src/ros_robot_localization_listener.cpp)
-add_library(ros_filter_utilities src/ros_filter_utilities.cpp)
-add_library(ros_filter src/ros_filter.cpp)
-add_library(navsat_transform src/navsat_transform.cpp)
+rosidl_target_interfaces(rl_lib
+  ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
-# Executables
-add_executable(ekf_localization_node src/ekf_localization_node.cpp)
-add_executable(ukf_localization_node src/ukf_localization_node.cpp)
-add_executable(navsat_transform_node src/navsat_transform_node.cpp)
-add_executable(robot_localization_listener_node src/robot_localization_listener_node.cpp)
-
-# Dependencies
-add_dependencies(filter_base ${PROJECT_NAME}_gencpp)
-add_dependencies(navsat_transform ${PROJECT_NAME}_gencpp)
-add_dependencies(robot_localization_listener_node ${PROJECT_NAME}_gencpp)
-
-# Linking
-target_link_libraries(ros_filter_utilities ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-target_link_libraries(filter_utilities ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-target_link_libraries(filter_base filter_utilities ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-target_link_libraries(ekf filter_base ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-target_link_libraries(ukf filter_base ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-target_link_libraries(ros_filter ekf ukf ros_filter_utilities ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-target_link_libraries(robot_localization_estimator filter_utilities filter_base ekf ukf ${EIGEN3_LIBRARIES})
-target_link_libraries(ros_robot_localization_listener robot_localization_estimator ros_filter_utilities
-  ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${YAML_CPP_LIBRARIES})
-target_link_libraries(robot_localization_listener_node ros_robot_localization_listener ${catkin_LIBRARIES})
-target_link_libraries(ekf_localization_node ros_filter ${catkin_LIBRARIES})
-target_link_libraries(ukf_localization_node ros_filter ${catkin_LIBRARIES})
-target_link_libraries(navsat_transform filter_utilities ros_filter_utilities ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-target_link_libraries(navsat_transform_node navsat_transform ${catkin_LIBRARIES})
-
-#############
-## Install ##
-#############
-
-## Mark executables and/or libraries for installation
-install(TARGETS
-  ekf
-  ekf_localization_node
-  filter_base
-  filter_utilities
-  navsat_transform
-  navsat_transform_node
-  ros_filter
-  ros_filter_utilities
-  robot_localization_estimator
-  ros_robot_localization_listener
-  robot_localization_listener_node
-  ukf
-  ukf_localization_node
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
-
-## Mark cpp header files for installation
-install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-  FILES_MATCHING PATTERN "*.h"
-  PATTERN ".svn" EXCLUDE)
-
-install(DIRECTORY launch/
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
-  FILES_MATCHING PATTERN "*.launch")
-
-install(DIRECTORY params/
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/params)
-
-install(FILES
-  LICENSE
-  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+add_executable(
+  se_node
+  src/se_node.cpp
 )
 
-#############
-## Testing ##
-#############
+target_link_libraries(
+  rl_lib
+  ${angles_LIBRARIES}
+  ${EIGEN3_LIBRARIES}
+  ${rclcpp_LIBRARIES}
+  ${geometry_msgs_LIBRARIES}
+  ${diagnostic_msgs_LIBRARIES}
+  ${nav_msgs_LIBRARIES}
+  ${sensor_msgs_LIBRARIES}
+  ${tf2_ros_LIBRARIES}
+  ${tf2_LIBRARIES}
+  ${tf2_geometry_msgs_LIBRARIES}
+)
 
-if (CATKIN_ENABLE_TESTING)
+target_link_libraries(
+  se_node
+  rl_lib
+)
 
-  # Not really necessary, but it will cause the build to fail if it's
-  # missing, rather than failing once the tests are being executed
-  find_package(rosbag REQUIRED)
-  find_package(rostest REQUIRED)
+install(
+  TARGETS
+  rl_lib
+  se_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+#install(
+#  TARGETS ${PROJECT_NAME}
+#  DESTINATION lib/${PROJECT_NAME}
+#)
+
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  find_package(ament_cmake_cppcheck REQUIRED)
+  find_package(ament_cmake_cpplint REQUIRED)
+  find_package(ament_cmake_lint_cmake REQUIRED)
+  find_package(ament_cmake_uncrustify REQUIRED)
+  #find_package(ament_lint_auto REQUIRED)
+
+  #ament_lint_auto_find_test_dependencies()
 
   #### FILTER BASE TESTS ####
-  catkin_add_gtest(filter_base-test test/test_filter_base.cpp)
-  target_link_libraries(filter_base-test filter_base ${catkin_LIBRARIES})
+  ament_add_gtest(filter_base-test test/test_filter_base.cpp)
+  target_link_libraries(filter_base-test rl_lib)
 
-  # This test uses ekf_localization node for convenience.
-  add_rostest_gtest(test_filter_base_diagnostics_timestamps
-                    test/test_filter_base_diagnostics_timestamps.test
-                    test/test_filter_base_diagnostics_timestamps.cpp)
-  target_link_libraries(test_filter_base_diagnostics_timestamps ${catkin_LIBRARIES} ${rostest_LIBRARIES})
-  add_dependencies(test_filter_base_diagnostics_timestamps ekf_localization_node)
+  #### TODO(someone): Need commented diagnostics source code in R_L src to execute this testcase.
+  # This test uses se_node node for convenience.
+  #ament_add_gtest(test_filter_base_diagnostics_timestamps
+  #                  test/test_filter_base_diagnostics_timestamps.cpp)
+  #target_link_libraries(test_filter_base_diagnostics_timestamps rl_lib)
+  #add_dependencies(test_filter_base_diagnostics_timestamps se_node)
 
-  #### EKF TESTS #####
-  add_rostest_gtest(test_ekf
-                    test/test_ekf.test
-                    test/test_ekf.cpp)
-  target_link_libraries(test_ekf ros_filter ekf ${catkin_LIBRARIES} ${rostest_LIBRARIES})
+  #### EKF TESTS ######
+  ament_add_gtest(test_ekf test/test_ekf.cpp)
+  target_link_libraries(test_ekf rl_lib)
 
+  ament_add_gtest(test_ekf_localization_node_interfaces
+  test/test_ekf_localization_node_interfaces.cpp)
+  target_link_libraries(test_ekf_localization_node_interfaces rl_lib)
 
-  add_rostest_gtest(test_ekf_localization_node_interfaces
-                    test/test_ekf_localization_node_interfaces.test
-                    test/test_ekf_localization_node_interfaces.cpp)
-  target_link_libraries(test_ekf_localization_node_interfaces ${catkin_LIBRARIES} ${rostest_LIBRARIES})
+  ament_add_gtest(test_ekf_localization_node_bag1 test/test_localization_node_bag_pose_tester.cpp)
+  target_link_libraries(test_ekf_localization_node_bag1 rl_lib)
 
-  add_rostest_gtest(test_ekf_localization_node_bag1
-                    test/test_ekf_localization_node_bag1.test
-                    test/test_localization_node_bag_pose_tester.cpp)
-  target_link_libraries(test_ekf_localization_node_bag1 ${catkin_LIBRARIES} ${rostest_LIBRARIES})
+  ament_add_gtest(test_ekf_localization_node_bag2 test/test_localization_node_bag_pose_tester.cpp)
+  target_link_libraries(test_ekf_localization_node_bag2 rl_lib)
 
-  add_rostest_gtest(test_ekf_localization_node_bag2
-                    test/test_ekf_localization_node_bag2.test
-                    test/test_localization_node_bag_pose_tester.cpp)
-  target_link_libraries(test_ekf_localization_node_bag2 ${catkin_LIBRARIES} ${rostest_LIBRARIES})
-
-  add_rostest_gtest(test_ekf_localization_node_bag3
-                    test/test_ekf_localization_node_bag3.test
-                    test/test_localization_node_bag_pose_tester.cpp)
-  target_link_libraries(test_ekf_localization_node_bag3 ${catkin_LIBRARIES} ${rostest_LIBRARIES})
+  ament_add_gtest(test_ekf_localization_node_bag3 test/test_localization_node_bag_pose_tester.cpp)
+  target_link_libraries(test_ekf_localization_node_bag3 rl_lib)
 
   #### UKF TESTS #####
-  add_rostest_gtest(test_ukf
-                    test/test_ukf.test
-                    test/test_ukf.cpp)
-  target_link_libraries(test_ukf ros_filter ukf ${catkin_LIBRARIES} ${rostest_LIBRARIES})
+  ament_add_gtest(test_ukf test/test_ukf.cpp)
+  target_link_libraries(test_ukf rl_lib)
 
-  add_rostest_gtest(test_ukf_localization_node_interfaces
-                    test/test_ukf_localization_node_interfaces.test
-                    test/test_ukf_localization_node_interfaces.cpp)
-  target_link_libraries(test_ukf_localization_node_interfaces ${catkin_LIBRARIES} ${rostest_LIBRARIES})
+  ament_add_gtest(test_ukf_localization_node_interfaces test/test_ukf_localization_node_interfaces.cpp)
+  target_link_libraries(test_ukf_localization_node_interfaces rl_lib)
 
-  add_rostest_gtest(test_ukf_localization_node_bag1
-                    test/test_ukf_localization_node_bag1.test
-                    test/test_localization_node_bag_pose_tester.cpp)
-  target_link_libraries(test_ukf_localization_node_bag1 ${catkin_LIBRARIES} ${rostest_LIBRARIES})
+  ament_add_gtest(test_ukf_localization_node_bag1 test/test_localization_node_bag_pose_tester.cpp)
+  target_link_libraries(test_ukf_localization_node_bag1 rl_lib)
 
-  add_rostest_gtest(test_ukf_localization_node_bag2
-                    test/test_ukf_localization_node_bag2.test
-                    test/test_localization_node_bag_pose_tester.cpp)
-  target_link_libraries(test_ukf_localization_node_bag2 ${catkin_LIBRARIES} ${rostest_LIBRARIES})
+  ament_add_gtest(test_ukf_localization_node_bag2 test/test_localization_node_bag_pose_tester.cpp)
+  target_link_libraries(test_ukf_localization_node_bag2 rl_lib)
 
-  add_rostest_gtest(test_ukf_localization_node_bag3
-                    test/test_ukf_localization_node_bag3.test
-                    test/test_localization_node_bag_pose_tester.cpp)
-  target_link_libraries(test_ukf_localization_node_bag3 ${catkin_LIBRARIES} ${rostest_LIBRARIES})
+  ament_add_gtest(test_ukf_localization_node_bag3 test/test_localization_node_bag_pose_tester.cpp)
+  target_link_libraries(test_ukf_localization_node_bag3 rl_lib)
 
-  #### RLE/RLL TESTS #####
-  add_rostest_gtest(test_robot_localization_estimator
-                    test/test_robot_localization_estimator.test
-                    test/test_robot_localization_estimator.cpp)
-  target_link_libraries(test_robot_localization_estimator
-                        robot_localization_estimator
-                        ${catkin_LIBRARIES}
-                        ${rostest_LIBRARIES})
+  # This forces cppcheck to consider all files in this project to be C++,
+  # including the headers which end with .h, which cppcheck would normally
+  # consider to be C instead.
+  ament_cppcheck(LANGUAGE "c++")
+  ament_cpplint()
+  ament_lint_cmake()
+  ament_uncrustify()
 
-  add_executable(test_ros_robot_localization_listener_publisher test/test_ros_robot_localization_listener_publisher.cpp)
-  target_link_libraries(test_ros_robot_localization_listener_publisher
-                        ${catkin_LIBRARIES})
-
-  add_rostest_gtest(test_ros_robot_localization_listener
-                    test/test_ros_robot_localization_listener.test
-                    test/test_ros_robot_localization_listener.cpp)
-  target_link_libraries(test_ros_robot_localization_listener
-                        ros_robot_localization_listener
-                        ${catkin_LIBRARIES}
-                        ${rostest_LIBRARIES})
-
+install(
+  TARGETS
+  filter_base-test
+  #test_filter_base_diagnostics_timestamps
+  test_ekf
+  test_ekf_localization_node_interfaces
+  test_ekf_localization_node_bag1
+  test_ekf_localization_node_bag2
+  test_ekf_localization_node_bag3
+  test_ukf
+  test_ukf_localization_node_interfaces
+  test_ukf_localization_node_bag1
+  test_ukf_localization_node_bag2
+  test_ukf_localization_node_bag3
+  DESTINATION lib/${PROJECT_NAME})
 endif()
+
+ament_export_dependencies(rosidl_default_runtime)
+ament_export_include_directories(include)
+ament_export_libraries(
+  rl_lib
+)
+
+# Install params config files.
+install(DIRECTORY
+  params
+  launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
+ament_package()
