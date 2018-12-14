@@ -1,4 +1,4 @@
-idist: bionic
+dist: bionic
 sudo: enabled
 language: generic
 
@@ -17,7 +17,7 @@ install:
   - sudo apt install python3-argcomplete
   - sudo apt install python3-colcon-common-extensions
   - sudo apt install build-essential
-  - source ~/ros2_ws/install/setup.bash
+  - source /opt/ros/$ROS_DISTRO/setup.bash
   - sudo rosdep init
   - rosdep update
   - sudo apt install python3-pip
