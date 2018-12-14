@@ -1,6 +1,6 @@
 dist: bionic
 sudo: enabled
-language: generic
+language: python
 
 env:
   global:
