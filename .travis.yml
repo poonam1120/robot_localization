@@ -1,6 +1,6 @@
 dist: bionic
 sudo: enabled
-language: python
+language: python3
 #python:
 # -"2.7"
 
