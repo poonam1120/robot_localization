@@ -32,11 +32,11 @@ script:
   - ln -s $TRAVIS_BUILD_DIR $ROS2_WS_ROBOT_LOCALIZATION_SRC
   - cd $ROS2_WS_ROBOT_LOCALIZATION
   - colcon build
-  - colcon test
+ # - colcon test
 
 branches:
   only:
-    - ros2
+    - ros2-devel
 
 notifications:
 email: false
