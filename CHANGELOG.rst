@@ -2,7 +2,7 @@
 Changelog for package robot_localization
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Test Crystle
+Test Crystle version 2
 
 2.4.5 (2018-10-25)
 ------------------
